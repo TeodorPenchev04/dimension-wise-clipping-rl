@@ -1,203 +1,155 @@
 # Dimension-Wise Clipping for Reinforcement Learning
 
-This repository investigates **Dimension-Wise Importance Sampling Weight Clipping (DISC)** and compares it against standard **Proximal Policy Optimization (PPO)** in continuous-control reinforcement learning.
+This repository compares **Proximal Policy Optimization (PPO)** with **Dimension-Wise Importance Sampling Weight Clipping (DISC)** for continuous-control reinforcement learning.
 
-The project is based on the DISC algorithm introduced by Han and Sung in *Dimension-Wise Importance Sampling Weight Clipping for Sample-Efficient Reinforcement Learning* (ICML 2019).
+The project is based on Han and Sung's paper:
 
-The main objective is to study whether dimension-wise clipping improves learning as the dimensionality of the action space increases, and to investigate how experience replay contributes to the sample efficiency of DISC.
+> **Dimension-Wise Importance Sampling Weight Clipping for Sample-Efficient Reinforcement Learning**  
+> Seungyul Han and Youngchul Sung, ICML 2019.
+
+The main goal is to investigate whether dimension-wise clipping becomes more effective as the action-space dimensionality increases, and how experience replay affects DISC's sample efficiency.
 
 ---
 
 ## Research Question
 
-**Does dimension-wise importance sampling weight clipping improve learning performance and sample efficiency compared with standard PPO, particularly as action dimensionality increases?**
+**Does dimension-wise importance sampling clipping improve learning compared with standard PPO, particularly in high-dimensional continuous-control tasks?**
 
 A secondary question is:
 
-**How much additional benefit comes from reusing previous rollout batches through the DISC replay mechanism?**
+**How much additional benefit comes from DISC's ability to reuse previous rollout batches?**
 
 ---
 
 ## Motivation
 
-Standard PPO computes a single importance sampling ratio for the complete action:
+Standard PPO uses a single importance sampling ratio for the full action:
 
-\[
+$$
 \rho_t =
 \frac{\pi_\theta(a_t|s_t)}
-{\pi_{\theta_{\text{old}}}(a_t|s_t)}.
-\]
+{\pi_{\theta_{\text{old}}}(a_t|s_t)}
+$$
 
-For a factorized continuous Gaussian policy, this ratio can be written as
+For a factorized Gaussian policy:
 
-\[
-\rho_t =
-\prod_{d=1}^{D} \rho_{t,d},
-\]
+$$
+\rho_t = \prod_{d=1}^{D}\rho_{t,d}
+$$
 
 where
 
-\[
+$$
 \rho_{t,d} =
-\frac{
-\pi_{\theta,d}(a_{t,d}|s_t)
-}{
-\pi_{\theta_{\text{old}},d}(a_{t,d}|s_t)
-}.
-\]
+\frac{\pi_{\theta,d}(a_{t,d}|s_t)}
+{\pi_{\theta_{\text{old}},d}(a_{t,d}|s_t)}
+$$
 
-As the number of action dimensions increases, the product of the per-dimension ratios can move far from 1 even when the policy change in each individual action dimension is relatively small.
+As the number of action dimensions increases, the product can move far from 1 even when each individual dimension changes only slightly.
 
-This can cause a larger fraction of samples to enter PPO's clipped region, where the policy gradient can vanish.
+This can cause more samples to enter PPO's clipped region, where their policy gradient may vanish.
 
-DISC addresses this by clipping each action dimension independently rather than clipping the joint action likelihood ratio.
+DISC instead clips each action dimension independently.
 
 ---
 
 ## Algorithms
 
-Three algorithms are compared.
-
 ### 1. PPO
 
-Standard Proximal Policy Optimization.
-
-Characteristics:
+Standard PPO with:
 
 - Joint importance sampling ratio
-- Standard PPO clipped objective
-- Standard Generalized Advantage Estimation (GAE)
-- No importance sampling penalty
+- Standard PPO clipping
+- Generalized Advantage Estimation (GAE)
+- No $J_{IS}$ penalty
 - No replay buffer
 
-The PPO objective uses
+The PPO objective is
 
-\[
-L^{PPO} =
-\min
-\left(
-\rho_t \hat A_t,
-\operatorname{clip}
-(\rho_t,1-\epsilon,1+\epsilon)\hat A_t
-\right).
-\]
-
-For the main experiment:
-
-\[
-\epsilon = 0.2.
-\]
+$$
+L^{\mathrm{PPO}} =
+\min \left(
+\rho_t \hat{A}_t,
+\operatorname{clip}(\rho_t,1-\epsilon,1+\epsilon)\hat{A}_t
+\right)
+$$
 
 ---
 
 ### 2. DISC without Replay
 
-This variant replaces PPO's joint-ratio clipping with **dimension-wise clipping**.
+This version replaces PPO's joint clipping with **dimension-wise clipping**.
 
-Each action dimension has its own importance sampling ratio:
+Each $\rho_{t,d}$ is clipped independently.
 
-\[
-\rho_{t,d} =
-\frac{
-\pi_{\theta,d}(a_{t,d}|s_t)
-}{
-\pi_{\theta_{\text{old}},d}(a_{t,d}|s_t)
-}.
-\]
+It uses:
 
-Each ratio is clipped independently.
-
-Characteristics:
-
-- Dimension-wise importance sampling ratios
+- Dimension-wise importance ratios
 - Dimension-wise clipping
-- Importance sampling control penalty \(J_{IS}\)
-- Adaptive \( \alpha_{IS} \)
+- IS-control penalty $J_{IS}$
+- Adaptive $\alpha_{IS}$
 - Standard GAE
 - No replay buffer
 
-The IS control penalty is
+The IS-control penalty is
 
-\[
+$$
 J_{IS}
 =
 \frac{1}{2M}
 \sum_{m=1}^{M}
-(\log \rho_m)^2.
-\]
+(\log \rho_m)^2
+$$
 
-The DISC policy objective therefore combines the dimension-wise clipped objective with
-
-\[
--\alpha_{IS}J_{IS}.
-\]
-
-This algorithm is used to study the effect of dimension-wise clipping before introducing experience replay.
+This variant allows us to study dimension-wise clipping without introducing experience replay.
 
 ---
 
 ### 3. Full DISC
 
-Full DISC includes the dimension-wise clipping mechanism and additionally reuses previous rollout batches.
+Full DISC adds sample reuse to the previous algorithm.
 
-Characteristics:
+It uses:
 
-- Dimension-wise importance sampling clipping
-- \(J_{IS}\) penalty
-- Adaptive \( \alpha_{IS} \)
+- Dimension-wise clipping
+- $J_{IS}$ penalty
+- Adaptive $\alpha_{IS}$
 - Replay buffer
-- Importance-ratio-based replay batch filtering
-- GAE-V advantage estimation
-- Current and accepted previous rollout batches used for policy optimization
+- Replay-batch filtering
+- GAE-V for off-policy advantage estimation
 
-The replay buffer contains previous rollout batches
+Previous rollout batches are stored and reused only when their importance sampling statistics remain sufficiently close to the current policy.
 
-\[
-B_i,\ B_{i-1},\ B_{i-2},\ldots
-\]
-
-up to a maximum replay length.
-
-Old batches are only reused when their dimension-wise importance sampling statistics remain sufficiently close to the current policy.
-
-Because the replayed trajectories were generated by older policies, standard GAE is replaced with **GAE-V**, which incorporates V-trace-style importance sampling corrections.
+Because old trajectories were generated by previous policies, **GAE-V** applies V-trace-style corrections when estimating their advantages.
 
 ---
 
-## Main Experimental Design
+## Experimental Design
 
-The main experiment intentionally uses the **same clipping parameter for all algorithms**:
+The main experiment uses the **same clipping parameter for all algorithms**:
 
-\[
+$$
 \boxed{\epsilon = 0.2}
-\]
+$$
 
-Therefore:
-
-| Algorithm | Clipping Ratio |
+| Algorithm | Clip Ratio |
 |---|---:|
 | PPO | 0.2 |
 | DISC without Replay | 0.2 |
 | Full DISC | 0.2 |
 
-This differs from the original DISC paper, which uses:
+The original DISC paper uses $\epsilon=0.2$ for PPO and $\epsilon=0.4$ for DISC.
 
-- PPO: \(\epsilon = 0.2\)
-- DISC: \(\epsilon = 0.4\)
+This project intentionally keeps $\epsilon$ constant so that the effect of the **clipping method itself** can be studied without changing the clipping range at the same time.
 
-The clipping ratio is kept identical in this project so that the effect of the **clipping mechanism itself** can be studied without introducing the clipping threshold as an additional experimental variable.
-
-A later secondary experiment may evaluate DISC using the paper's recommended value of
-
-\[
-\epsilon = 0.4.
-\]
+A secondary experiment may later evaluate DISC with the paper's recommended $\epsilon=0.4$.
 
 ---
 
 ## Environments
 
-Experiments are performed using MuJoCo continuous-control environments through Gymnasium.
+Experiments use Gymnasium MuJoCo environments with increasing action dimensionality:
 
 | Environment | Action Dimensions |
 |---|---:|
@@ -205,210 +157,118 @@ Experiments are performed using MuJoCo continuous-control environments through G
 | Ant-v5 | 8 |
 | Humanoid-v5 | 17 |
 
-The increasing action dimensionality allows the experiment to investigate whether the difference between joint clipping and dimension-wise clipping becomes more significant as the action space grows.
+This allows us to investigate whether PPO's joint clipping becomes increasingly restrictive as the action dimension grows.
 
-The original DISC paper used earlier OpenAI Gym versions of these environments. This repository uses the current Gymnasium MuJoCo environments, so numerical results should not be expected to exactly reproduce the values reported in the original paper.
+The original paper used older OpenAI Gym versions, so exact numerical reproduction of the original results is not expected.
 
 ---
 
 ## Common Hyperparameters
 
-The main experiments keep the shared PPO/DISC parameters consistent across algorithms.
-
-| Hyperparameter | Value |
+| Parameter | Value |
 |---|---:|
-| Discount factor \(\gamma\) | 0.99 |
-| GAE parameter \(\lambda\) | 0.95 |
+| Discount factor $\gamma$ | 0.99 |
+| GAE parameter $\lambda$ | 0.95 |
 | Rollout length | 2048 |
 | Update epochs | 10 |
-| Clipping ratio \(\epsilon\) | 0.2 |
+| Clipping ratio $\epsilon$ | 0.2 |
 | Optimizer | Adam |
 | Initial learning rate | 0.0003 |
-| Hidden layers | 2 |
-| Hidden units per layer | 64 |
+| Hidden layers | 2 × 64 |
 | Activation | Tanh |
 
 DISC-specific parameters:
 
-| Hyperparameter | Value |
+| Parameter | Value |
 |---|---:|
-| \(J_{targ}\) | 0.0001 |
-| Initial \(\alpha_{IS}\) | 1.0 |
+| $J_{\mathrm{targ}}$ | 0.0001 |
+| Initial $\alpha_{IS}$ | 1.0 |
 | Replay length | 64 rollout batches |
-| Batch inclusion threshold \(\epsilon_b\) | 0.1 |
+| Batch inclusion threshold $\epsilon_b$ | 0.1 |
 
 ---
 
 ## Metrics
 
-The experiment evaluates more than final episode reward.
+The experiments will track:
 
-### Performance
-
-- Episode return vs. environment interactions
+- Episode return vs. environment steps
 - Final evaluation return
 - Episode length
-- Sample efficiency
-- Mean performance across random seeds
-- Standard deviation across random seeds
-
-### PPO / DISC Clipping Behavior
-
-- Fraction of PPO samples entering the clipped region
-- Fraction of DISC action dimensions entering the clipped region
-- Joint importance sampling ratio statistics
-- Per-dimension importance sampling ratio statistics
-
-### Optimization Behavior
-
-- Policy loss
-- Value loss
-- Entropy
-- Approximate KL divergence
+- Clipping fraction
+- Joint importance ratio statistics
+- Per-dimension importance ratio statistics
 - Gradient norm
-- Gradient variability
+- Approximate KL divergence
+- $J_{IS}$ and $\alpha_{IS}$
+- Number of accepted replay batches
+- Mean and standard deviation across random seeds
 
-### DISC-Specific Metrics
-
-- \(J_{IS}\)
-- \(\alpha_{IS}\)
-- Number of replay batches accepted
-- Age of accepted replay batches
-- Number of replay batches rejected
+The goal is to study both **performance** and the mechanism behind any performance difference.
 
 ---
 
 ## Hypotheses
 
-### Hypothesis 1
-
-As action dimensionality increases, PPO's joint importance sampling ratio will deviate further from 1.
-
-Therefore, PPO is expected to experience a higher clipping rate in Ant and Humanoid than in Hopper.
-
-### Hypothesis 2
-
-Dimension-wise clipping will preserve useful policy gradients that would otherwise be removed by PPO's joint clipping mechanism.
-
-The difference should become more significant as action dimensionality increases.
-
-### Hypothesis 3
-
-The DISC replay mechanism will improve sample efficiency by allowing useful previous rollout batches to contribute additional policy updates.
-
-### Hypothesis 4
-
-The benefit of DISC should be smallest in Hopper and largest in Humanoid because of the difference in action dimensionality.
+1. PPO's joint importance ratio will become more extreme as action dimensionality increases.
+2. PPO will therefore clip more samples in Ant and Humanoid than in Hopper.
+3. Dimension-wise clipping will preserve more useful policy gradients.
+4. DISC's replay mechanism will improve sample efficiency by reusing valid previous experience.
+5. The difference between PPO and DISC should be most visible in Humanoid.
 
 ---
 
 ## Repository Structure
 
-~~~text
+```text
 dimension-wise-clipping-rl/
-│
 ├── algorithms/
 │   ├── ppo.py
 │   ├── disc.py
 │   └── disc_replay.py
-│
 ├── core/
 │   ├── networks.py
 │   ├── buffer.py
 │   ├── distributions.py
 │   ├── gae.py
 │   └── gae_v.py
-│
 ├── configs/
 │   └── base.yaml
-│
 ├── train/
-│
 ├── evaluation/
-│
 ├── analysis/
-│
 ├── experiments/
-│
 ├── results/
-│
 ├── requirements.txt
-├── .gitignore
 └── README.md
-~~~
+```
 
 ---
 
 ## Experimental Progression
 
-The project follows the progression
+The project follows:
 
-\[
-\text{PPO}
-\]
+**PPO**
 
-\[
-\downarrow
-\]
+↓
 
-\[
-\text{DISC without Replay}
-\]
+**DISC with dimension-wise clipping**
 
-\[
-\downarrow
-\]
+↓
 
-\[
-\text{Full DISC with Replay + GAE-V}.
-\]
+**Full DISC with replay + GAE-V**
 
-This makes it possible to separate the effect of dimension-wise clipping from the effect of reusing previous experience.
+This allows the contribution of dimension-wise clipping and sample reuse to be examined separately.
 
 ---
 
 ## Reference
 
-This project is based on:
+Han, S. and Sung, Y.  
+**Dimension-Wise Importance Sampling Weight Clipping for Sample-Efficient Reinforcement Learning.**  
+Proceedings of the 36th International Conference on Machine Learning (ICML), PMLR 97, 2019.
 
-**Seungyul Han and Youngchul Sung.**  
-*Dimension-Wise Importance Sampling Weight Clipping for Sample-Efficient Reinforcement Learning.*  
-Proceedings of the 36th International Conference on Machine Learning (ICML),  
-Proceedings of Machine Learning Research, Volume 97, 2019.
+Paper: https://arxiv.org/abs/1905.02363
 
-arXiv:1905.02363
-
-### BibTeX
-
-~~~bibtex
-@inproceedings{han2019dimension,
-  title={Dimension-Wise Importance Sampling Weight Clipping for Sample-Efficient Reinforcement Learning},
-  author={Han, Seungyul and Sung, Youngchul},
-  booktitle={Proceedings of the 36th International Conference on Machine Learning},
-  series={Proceedings of Machine Learning Research},
-  volume={97},
-  year={2019}
-}
-~~~
-
----
-
-## Status
-
-Current development plan:
-
-- [ ] Implement shared actor and critic networks
-- [ ] Implement rollout buffer
-- [ ] Implement GAE
-- [ ] Implement standard PPO
-- [ ] Validate PPO on Hopper-v5
-- [ ] Implement dimension-wise DISC objective
-- [ ] Implement \(J_{IS}\) and adaptive \(\alpha_{IS}\)
-- [ ] Implement replay buffer
-- [ ] Implement replay batch inclusion criterion
-- [ ] Implement GAE-V
-- [ ] Run Hopper experiments
-- [ ] Run Ant experiments
-- [ ] Run Humanoid experiments
-- [ ] Compare learning curves and clipping statistics
-- [ ] Run multi-seed evaluation
+Original implementation: https://github.com/seungyulhan/disc
