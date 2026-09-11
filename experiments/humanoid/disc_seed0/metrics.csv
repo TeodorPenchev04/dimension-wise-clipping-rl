@@ -1,0 +1,2 @@
+environment_steps,update,learning_rate,mean_recent_return,eval_mean_return,eval_std_return,eval_mean_episode_length,policy_loss,value_loss,entropy,jis,alpha_is,ratio_mean,ratio_std,dimension_clipped_fraction,actor_grad_norm,critic_grad_norm
+2048,1,0.0003,102.78367100535179,220.75518821809163,9.854617608090178,46.9,-0.1051374911039602,0.6482523388229311,24.095637154579162,0.04465432824417827,2.0,0.9996780736371875,0.06007171001654186,0.011893956963831442,2.3599914360791443,0.11336962753084663
