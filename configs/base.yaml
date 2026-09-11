@@ -1,0 +1,21 @@
+gamma: 0.99
+gae_lambda: 0.95
+
+rollout_steps: 2048
+epochs: 10
+
+clip_ratio: 0.2
+
+learning_rate: 0.0003
+
+hidden_sizes:
+  - 64
+  - 64
+
+activation: tanh
+
+jis_target: 0.0001
+alpha_is_initial: 1.0
+
+replay_length: 64
+batch_inclusion_epsilon: 0.1
